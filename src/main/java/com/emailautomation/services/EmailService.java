@@ -5,6 +5,9 @@ import javax.mail.*;
 import javax.mail.internet.*;
 import javax.activation.*;
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
@@ -72,37 +75,82 @@ public class EmailService {
             // Create body part
             MimeBodyPart bodyPart = new MimeBodyPart();
 
-            // Check if we have a logo to include
+            // Check if we have a logo to include or HTML is requested
             String bodyContent = config.getBody();
             String logoContentId = null;
+            boolean useHtml = config.isUseHtml() || config.getLogoPath() != null || config.getSignatureFile() != null;
 
-            if (config.getLogoPath() != null && !config.getLogoPath().isEmpty()) {
-                // Generate unique content ID for the logo
-                logoContentId = "logo_" + System.currentTimeMillis() + "@emailautomation";
+            // Load signature if specified
+            String signatureContent = "";
+            if (config.getSignatureFile() != null && !config.getSignatureFile().isEmpty()) {
+                try {
+                    signatureContent = Files.readString(Paths.get(config.getSignatureFile()));
+                    logger.info("Loaded signature from: " + config.getSignatureFile());
+                } catch (IOException e) {
+                    logger.warning("Failed to load signature file: " + e.getMessage());
+                }
+            }
 
-                // Create HTML body with embedded logo
-                String htmlBody = "<html><body>" +
-                        "<img src='cid:" + logoContentId + "' style='max-width: 200px; display: block; margin-bottom: 20px;'/>" +
-                        "<pre style='font-family: Arial, sans-serif; white-space: pre-wrap;'>" +
-                        escapeHtml(bodyContent) +
-                        "</pre></body></html>";
+            if (useHtml) {
+                String htmlBody;
+
+                if (config.getLogoPath() != null && !config.getLogoPath().isEmpty()) {
+                    // Generate unique content ID for the logo
+                    logoContentId = "logo_" + System.currentTimeMillis() + "@emailautomation";
+
+                    // Check if body already contains HTML tags
+                    boolean isFullHtml = bodyContent.toLowerCase().contains("<html>") ||
+                            bodyContent.toLowerCase().contains("<!doctype");
+
+                    if (isFullHtml) {
+                        // Insert logo after <body> tag
+                        String logoImg = "<img src='cid:" + logoContentId + "' style='max-width: 200px; display: block; margin-bottom: 20px;'/>";
+                        htmlBody = bodyContent.replaceFirst("(?i)<body[^>]*>", "$0" + logoImg);
+                        // Insert signature before </body>
+                        if (!signatureContent.isEmpty()) {
+                            htmlBody = insertSignatureIntoHtml(htmlBody, signatureContent);
+                        }
+                    } else {
+                        // Wrap in HTML with logo and signature
+                        htmlBody = "<html><body style='font-family: Arial, sans-serif;'>" +
+                                "<img src='cid:" + logoContentId + "' style='max-width: 200px; display: block; margin-bottom: 20px;'/>" +
+                                bodyContent +
+                                signatureContent +
+                                "</body></html>";
+                    }
+
+                    // Add logo as embedded image
+                    MimeBodyPart logoPart = new MimeBodyPart();
+                    DataSource logoSource = new FileDataSource(config.getLogoPath());
+                    logoPart.setDataHandler(new DataHandler(logoSource));
+                    logoPart.setHeader("Content-ID", "<" + logoContentId + ">");
+                    logoPart.setDisposition(MimeBodyPart.INLINE);
+                    multipart.addBodyPart(logoPart);
+                } else {
+                    // HTML without logo - check if it's Markdown or HTML
+                    if (bodyContent.toLowerCase().contains("<html>") ||
+                            bodyContent.toLowerCase().contains("<!doctype")) {
+                        // Already HTML - insert signature before </body>
+                        if (!signatureContent.isEmpty()) {
+                            bodyContent = insertSignatureIntoHtml(bodyContent, signatureContent);
+                        }
+                        htmlBody = bodyContent;
+                    } else {
+                        // Convert Markdown-style text to HTML and add signature
+                        htmlBody = "<html><body style='font-family: Arial, sans-serif;'>" +
+                                convertMarkdownToHtml(bodyContent) +
+                                signatureContent +
+                                "</body></html>";
+                    }
+                }
 
                 bodyPart.setContent(htmlBody, "text/html; charset=UTF-8");
-
-                // Add logo as embedded image
-                MimeBodyPart logoPart = new MimeBodyPart();
-                DataSource logoSource = new FileDataSource(config.getLogoPath());
-                logoPart.setDataHandler(new DataHandler(logoSource));
-                logoPart.setHeader("Content-ID", "<" + logoContentId + ">");
-                logoPart.setDisposition(MimeBodyPart.INLINE);
-
-                multipart.addBodyPart(bodyPart);
-                multipart.addBodyPart(logoPart);
             } else {
-                // No logo, just plain text
+                // Plain text
                 bodyPart.setText(bodyContent, "UTF-8");
-                multipart.addBodyPart(bodyPart);
             }
+
+            multipart.addBodyPart(bodyPart);
 
             // Add attachments
             List<String> allAttachments = new ArrayList<>();
@@ -223,5 +271,62 @@ public class EmailService {
                 .replace(">", "&gt;")
                 .replace("\"", "&quot;")
                 .replace("'", "&#x27;");
+    }
+
+    private String formatHtmlBody(String text) {
+        // Convert plain text to HTML with proper formatting
+        return text
+                // First escape HTML
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                // Convert line breaks to <br>
+                .replace("\n", "<br>")
+                // Convert tabs to spaces
+                .replace("\t", "&nbsp;&nbsp;&nbsp;&nbsp;")
+                // Basic text formatting patterns
+                .replaceAll("\\*\\*(.+?)\\*\\*", "<strong>$1</strong>")  // **bold**
+                .replaceAll("\\*(.+?)\\*", "<em>$1</em>")  // *italic*
+                .replaceAll("__(.+?)__", "<u>$1</u>");  // __underline__
+    }
+
+    private String convertMarkdownToHtml(String markdown) {
+        String html = markdown
+                // Escape HTML entities
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+
+                // Headers
+                .replaceAll("^### (.+)$", "<h3>$1</h3>")
+                .replaceAll("^## (.+)$", "<h2>$1</h2>")
+                .replaceAll("^# (.+)$", "<h1>$1</h1>")
+
+                // Lists (simple support)
+                .replaceAll("^\\* (.+)$", "<li>$1</li>")
+                .replaceAll("^- (.+)$", "<li>$1</li>")
+                .replaceAll("(<li>.*</li>)\n(?!<li>)", "<ul>$1</ul>")
+
+                // Text formatting
+                .replaceAll("\\*\\*(.+?)\\*\\*", "<strong>$1</strong>")  // **bold**
+                .replaceAll("\\*(.+?)\\*", "<em>$1</em>")  // *italic*
+                .replaceAll("__(.+?)__", "<u>$1</u>")  // __underline__
+
+                // Line breaks - convert double newline to paragraph
+                .replaceAll("\n\n", "</p><p>")
+                .replaceAll("\n", "<br>");
+
+        return "<p>" + html + "</p>";
+    }
+
+    private String insertSignatureIntoHtml(String html, String signature) {
+        // Insert signature before </body> tag
+        int bodyCloseIndex = html.toLowerCase().lastIndexOf("</body>");
+        if (bodyCloseIndex > 0) {
+            return html.substring(0, bodyCloseIndex) + signature + html.substring(bodyCloseIndex);
+        } else {
+            // No </body> tag found, append at end
+            return html + signature;
+        }
     }
 }

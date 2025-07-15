@@ -22,6 +22,8 @@ public class EmailConfig {
     private String body;
     private boolean useTLS;
     private String logoPath;  // New field for logo/image
+    private boolean useHtml;  // New field for HTML format
+    private String signatureFile;  // New field for signature file
 
     private EmailConfig() {
         this.to = new ArrayList<>();
@@ -78,6 +80,8 @@ public class EmailConfig {
     public String getBody() { return body != null ? body : ""; }
     public boolean isUseTLS() { return useTLS; }
     public String getLogoPath() { return logoPath; }  // New getter
+    public boolean isUseHtml() { return useHtml; }  // New getter
+    public String getSignatureFile() { return signatureFile; }  // New getter
 
     @Override
     public String toString() {
@@ -177,6 +181,16 @@ public class EmailConfig {
 
         public Builder logoPath(String logoPath) {
             config.logoPath = logoPath;
+            return this;
+        }
+
+        public Builder useHtml(boolean useHtml) {
+            config.useHtml = useHtml;
+            return this;
+        }
+
+        public Builder signatureFile(String signatureFile) {
+            config.signatureFile = signatureFile;
             return this;
         }
 

@@ -67,15 +67,29 @@ public class EmailConfigLoader {
                         // Ignored - deprecated parameter
                         logger.info("Ignoring deprecated parameter: " + key);
                         break;
+                    case "signaturefile":
+                    case "signature_file":
+                    case "signature":
+                        builder.signatureFile(value);
+                        break;
                 }
             }
         }
 
-        // Load body from separate .txt file if it exists
+        // Load body from separate files - priority: .md > .txt > config
+        String mdFilePath = filePath.replaceAll("\\.[^.]+$", ".md");
         String txtFilePath = filePath.replaceAll("\\.[^.]+$", ".txt");
-        if (Files.exists(Paths.get(txtFilePath))) {
+
+        // First check for Markdown file
+        if (Files.exists(Paths.get(mdFilePath))) {
+            logger.info("Loading Markdown email body from: " + mdFilePath);
+            String mdBody = readFileWithEncoding(mdFilePath);
+            builder.body(mdBody);
+            builder.useHtml(true);  // Will convert to HTML
+        }
+        // Otherwise check for text file
+        else if (Files.exists(Paths.get(txtFilePath))) {
             logger.info("Loading email body from: " + txtFilePath);
-            // Try to detect encoding, default to UTF-8
             String bodyFromFile = readFileWithEncoding(txtFilePath);
             builder.body(bodyFromFile);
         }
@@ -90,7 +104,17 @@ public class EmailConfigLoader {
             for (String line : attachmentLines) {
                 line = line.trim();
                 if (!line.isEmpty() && !line.startsWith("#")) { // Skip empty lines and comments
-                    attachmentPaths.add(line);
+                    // Handle both formats:
+                    // 1. "fileandpath = path"
+                    // 2. "path" (direct path)
+                    if (line.contains("=")) {
+                        String[] parts = line.split("=", 2);
+                        if (parts.length == 2) {
+                            attachmentPaths.add(parts[1].trim());
+                        }
+                    } else {
+                        attachmentPaths.add(line);
+                    }
                 }
             }
 
