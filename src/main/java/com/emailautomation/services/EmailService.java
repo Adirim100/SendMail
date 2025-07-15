@@ -4,6 +4,9 @@ import com.emailautomation.models.EmailConfig;
 import javax.mail.*;
 import javax.mail.internet.*;
 import javax.activation.*;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 import java.util.logging.Logger;
 
@@ -101,14 +104,34 @@ public class EmailService {
                 multipart.addBodyPart(bodyPart);
             }
 
-            // Add attachment if present
-            if (config.getAttachmentPath() != null && !config.getAttachmentPath().isEmpty()) {
-                MimeBodyPart attachmentPart = new MimeBodyPart();
-                DataSource source = new FileDataSource(config.getAttachmentPath());
-                attachmentPart.setDataHandler(new DataHandler(source));
-                attachmentPart.setFileName(config.getAttachmentName() != null ?
-                        config.getAttachmentName() : source.getName());
-                multipart.addBodyPart(attachmentPart);
+            // Add attachments
+            List<String> allAttachments = new ArrayList<>();
+
+            // If we have multiple attachments from .list file, use those
+            if (!config.getAttachmentPaths().isEmpty()) {
+                allAttachments.addAll(config.getAttachmentPaths());
+            }
+            // Otherwise, use single attachment from config if present
+            else if (config.getAttachmentPath() != null && !config.getAttachmentPath().isEmpty()) {
+                allAttachments.add(config.getAttachmentPath());
+            }
+
+            // Add all attachments to the email
+            for (String attachmentPath : allAttachments) {
+                try {
+                    MimeBodyPart attachmentPart = new MimeBodyPart();
+                    DataSource source = new FileDataSource(attachmentPath);
+                    attachmentPart.setDataHandler(new DataHandler(source));
+
+                    // Extract filename from path
+                    String filename = new File(attachmentPath).getName();
+                    attachmentPart.setFileName(filename);
+
+                    multipart.addBodyPart(attachmentPart);
+                    logger.info("Added attachment: " + filename);
+                } catch (Exception e) {
+                    logger.warning("Failed to attach file: " + attachmentPath + " - " + e.getMessage());
+                }
             }
 
             message.setContent(multipart);

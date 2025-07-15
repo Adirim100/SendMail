@@ -36,6 +36,8 @@ public class EmailAutomationApp {
             String paramFile = args[0];
             boolean deleteParamFile = args.length >= 2 && "true".equalsIgnoreCase(args[1]);
 
+            logger.info("Loading email configuration from: " + paramFile);
+
             // Load email configuration
             EmailConfig config = EmailConfigLoader.loadFromFile(paramFile);
 
@@ -47,6 +49,8 @@ public class EmailAutomationApp {
                 notificationService.showError("Email configuration error!");
                 System.exit(1);
             }
+
+            logger.info("Sending email to: " + String.join(",", config.getTo()));
 
             // Send email via SMTP
             emailService.sendViaSMTP(config);
@@ -60,9 +64,17 @@ public class EmailAutomationApp {
                 FileUtils.deleteFile(paramFile);
             }
 
+            // Clean up notification service to allow exit
+            notificationService.cleanup();
+
+            // Force exit
+            System.exit(0);
+
         } catch (Exception e) {
             logger.severe("Error sending email: " + e.getMessage());
+            e.printStackTrace(); // This will show the full error stack trace
             notificationService.showError("Email sending failed: " + e.getMessage());
+            notificationService.cleanup();
             System.exit(1);
         }
     }

@@ -17,6 +17,7 @@ public class EmailConfig {
     private List<String> bcc;
     private String attachmentPath;
     private String attachmentName;
+    private List<String> attachmentPaths;  // New field for multiple attachments
     private String subject;
     private String body;
     private boolean useTLS;
@@ -25,6 +26,7 @@ public class EmailConfig {
     private EmailConfig() {
         this.to = new ArrayList<>();
         this.bcc = new ArrayList<>();
+        this.attachmentPaths = new ArrayList<>();
     }
 
     public static Builder builder() {
@@ -71,6 +73,7 @@ public class EmailConfig {
     public List<String> getBcc() { return new ArrayList<>(bcc); }
     public String getAttachmentPath() { return attachmentPath; }
     public String getAttachmentName() { return attachmentName; }
+    public List<String> getAttachmentPaths() { return new ArrayList<>(attachmentPaths); }
     public String getSubject() { return subject != null ? subject : ""; }
     public String getBody() { return body != null ? body : ""; }
     public boolean isUseTLS() { return useTLS; }
@@ -144,6 +147,16 @@ public class EmailConfig {
 
         public Builder attachmentName(String name) {
             config.attachmentName = name;
+            return this;
+        }
+
+        public Builder attachmentPaths(List<String> paths) {
+            config.attachmentPaths = new ArrayList<>(paths);
+            return this;
+        }
+
+        public Builder addAttachmentPath(String path) {
+            config.attachmentPaths.add(path);
             return this;
         }
 

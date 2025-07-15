@@ -62,6 +62,11 @@ public class EmailConfigLoader {
                     case "logo_path":
                         builder.logoPath(value);
                         break;
+                    case "sendamail":
+                    case "sendemail":
+                        // Ignored - deprecated parameter
+                        logger.info("Ignoring deprecated parameter: " + key);
+                        break;
                 }
             }
         }
@@ -73,6 +78,25 @@ public class EmailConfigLoader {
             // Try to detect encoding, default to UTF-8
             String bodyFromFile = readFileWithEncoding(txtFilePath);
             builder.body(bodyFromFile);
+        }
+
+        // Load attachments from separate .list file if it exists
+        String listFilePath = filePath.replaceAll("\\.[^.]+$", ".list");
+        if (Files.exists(Paths.get(listFilePath))) {
+            logger.info("Loading attachments from: " + listFilePath);
+            List<String> attachmentLines = Files.readAllLines(Paths.get(listFilePath));
+            List<String> attachmentPaths = new ArrayList<>();
+
+            for (String line : attachmentLines) {
+                line = line.trim();
+                if (!line.isEmpty() && !line.startsWith("#")) { // Skip empty lines and comments
+                    attachmentPaths.add(line);
+                }
+            }
+
+            if (!attachmentPaths.isEmpty()) {
+                builder.attachmentPaths(attachmentPaths);
+            }
         }
 
         return builder.build();
