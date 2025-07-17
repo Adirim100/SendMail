@@ -38,10 +38,26 @@ public class EmailConfigLoader {
                         builder.from(value);
                         break;
                     case "to":
-                        builder.to(Arrays.asList(value.split(",")));
+                        String[] toAddresses = value.split(",");
+                        List<String> toList = new ArrayList<>();
+                        for (String email : toAddresses) {
+                            String trimmed = email.trim();
+                            if (!trimmed.isEmpty()) {
+                                toList.add(trimmed);
+                            }
+                        }
+                        builder.to(toList);
                         break;
                     case "bcc":
-                        builder.bcc(Arrays.asList(value.split(",")));
+                        String[] bccAddresses = value.split(",");
+                        List<String> bccList = new ArrayList<>();
+                        for (String email : bccAddresses) {
+                            String trimmed = email.trim();
+                            if (!trimmed.isEmpty()) {
+                                bccList.add(trimmed);
+                            }
+                        }
+                        builder.bcc(bccList);
                         break;
                     case "fileandpath":
                         builder.attachmentPath(value);
@@ -71,6 +87,25 @@ public class EmailConfigLoader {
                     case "signature_file":
                     case "signature":
                         builder.signatureFile(value);
+                        break;
+                    case "debug":
+                        builder.debug(Boolean.parseBoolean(value) || "True".equalsIgnoreCase(value));
+                        break;
+                    case "reply_to":
+                    case "replyto":
+                        builder.replyTo(value);
+                        break;
+                    case "read_receipt":
+                    case "readreceipt":
+                        builder.readReceipt(Boolean.parseBoolean(value) || "True".equalsIgnoreCase(value));
+                        break;
+                    case "teamname":
+                    case "team_name":
+                        builder.teamName(value);
+                        break;
+                    case "htmltemplate":
+                    case "html_template":
+                        builder.htmlTemplate(value);
                         break;
                 }
             }

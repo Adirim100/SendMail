@@ -34,7 +34,6 @@ public class EmailAutomationApp {
 
         try {
             String paramFile = args[0];
-            boolean deleteParamFile = args.length >= 2 && "true".equalsIgnoreCase(args[1]);
 
             logger.info("Loading email configuration from: " + paramFile);
 
@@ -51,6 +50,9 @@ public class EmailAutomationApp {
             }
 
             logger.info("Sending email to: " + String.join(",", config.getTo()));
+            if (config.isDebug()) {
+                logger.info("Debug mode is ON - files will be preserved");
+            }
 
             // Send email via SMTP
             emailService.sendViaSMTP(config);
@@ -59,9 +61,25 @@ public class EmailAutomationApp {
             logService.logSuccess("sentlast.log", "Email sent successfully", config);
             notificationService.showSuccess("Email sent successfully!");
 
-            // Delete parameter file if requested
-            if (deleteParamFile) {
+            // Wait a bit to ensure notification is displayed
+            try {
+                Thread.sleep(2000); // 2 seconds
+            } catch (InterruptedException e) {
+                // Ignore
+            }
+
+            // Delete parameter file only if debug=false
+            if (!config.isDebug()) {
                 FileUtils.deleteFile(paramFile);
+                logger.info("Parameter file deleted: " + paramFile);
+
+                // Also delete associated files
+                String baseFileName = paramFile.replaceAll("\\.[^.]+$", "");
+                deleteIfExists(baseFileName + ".txt");
+                deleteIfExists(baseFileName + ".html");
+                deleteIfExists(baseFileName + ".list");
+            } else {
+                logger.info("Debug mode: keeping all files");
             }
 
             // Clean up notification service to allow exit
@@ -80,8 +98,19 @@ public class EmailAutomationApp {
     }
 
     private void showUsageError() {
-        String usage = "Usage: java -jar email-automation.jar <param-file> [delete-param-file]\n" +
-                "Example: java -jar email-automation.jar email-config.txt true";
+        String usage = "Usage: java -jar email-automation.jar <param-file>\n" +
+                "Example: java -jar email-automation.jar email-config.txt";
         notificationService.showError(usage, 5);
+    }
+
+    private void deleteIfExists(String filePath) {
+        try {
+            if (FileUtils.fileExists(filePath)) {
+                FileUtils.deleteFile(filePath);
+                logger.info("Deleted: " + filePath);
+            }
+        } catch (Exception e) {
+            logger.warning("Could not delete " + filePath + ": " + e.getMessage());
+        }
     }
 }

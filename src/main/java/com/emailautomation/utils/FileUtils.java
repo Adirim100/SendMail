@@ -12,7 +12,4 @@ public class FileUtils {
         return Files.exists(Paths.get(filePath));
     }
 
-    public static String getWorkingDirectory() {
-        return System.getProperty("user.dir");
-    }
 }

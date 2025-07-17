@@ -31,19 +31,12 @@
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi</artifactId>
-            <version>5.2.4</version>
+            <version>5.2.3</version>
         </dependency>
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
-            <version>5.2.4</version>
-        </dependency>
-
-        <!-- JACOB for Windows COM integration (optional, Windows only) -->
-        <dependency>
-            <groupId>net.sf.jacob-project</groupId>
-            <artifactId>jacob</artifactId>
-            <version>1.20</version>
+            <version>5.2.3</version>
         </dependency>
 
         <!-- Logging -->
@@ -55,7 +48,7 @@
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
-            <version>1.4.11</version>
+            <version>1.5.16</version>
         </dependency>
 
         <!-- Testing -->
@@ -112,5 +105,13 @@
                 <version>3.1.2</version>
             </plugin>
         </plugins>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <includes>
+                    <include>**/*.png</include>
+                </includes>
+            </resource>
+        </resources>
     </build>
 </project>

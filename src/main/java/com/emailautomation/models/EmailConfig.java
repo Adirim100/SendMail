@@ -24,6 +24,11 @@ public class EmailConfig {
     private String logoPath;  // New field for logo/image
     private boolean useHtml;  // New field for HTML format
     private String signatureFile;  // New field for signature file
+    private boolean debug;  // New field for debug mode
+    private String replyTo;  // New field for reply-to address
+    private boolean readReceipt;  // New field for read receipt
+    private String teamName;  // New field for team name
+    private String htmlTemplate;  // New field for HTML template path
 
     private EmailConfig() {
         this.to = new ArrayList<>();
@@ -82,6 +87,11 @@ public class EmailConfig {
     public String getLogoPath() { return logoPath; }  // New getter
     public boolean isUseHtml() { return useHtml; }  // New getter
     public String getSignatureFile() { return signatureFile; }  // New getter
+    public boolean isDebug() { return debug; }  // New getter
+    public String getReplyTo() { return replyTo; }  // New getter
+    public boolean isReadReceipt() { return readReceipt; }  // New getter
+    public String getTeamName() { return teamName != null ? teamName : "Team"; }  // New getter
+    public String getHtmlTemplate() { return htmlTemplate; }  // New getter
 
     @Override
     public String toString() {
@@ -191,6 +201,31 @@ public class EmailConfig {
 
         public Builder signatureFile(String signatureFile) {
             config.signatureFile = signatureFile;
+            return this;
+        }
+
+        public Builder debug(boolean debug) {
+            config.debug = debug;
+            return this;
+        }
+
+        public Builder replyTo(String replyTo) {
+            config.replyTo = replyTo;
+            return this;
+        }
+
+        public Builder readReceipt(boolean readReceipt) {
+            config.readReceipt = readReceipt;
+            return this;
+        }
+
+        public Builder teamName(String teamName) {
+            config.teamName = teamName;
+            return this;
+        }
+
+        public Builder htmlTemplate(String htmlTemplate) {
+            config.htmlTemplate = htmlTemplate;
             return this;
         }
 
