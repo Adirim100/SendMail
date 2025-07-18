@@ -58,7 +58,7 @@ public class LogService {
         try {
             Files.write(logPath, logEntry.getBytes(),
                     StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-            logger.info("Log written to: " + logPath.toString());
+            logger.info("Log written to: " + logPath);
         } catch (IOException e) {
             logger.severe("Failed to write to log file: " + e.getMessage());
         }

@@ -1,0 +1,19 @@
+# SMTP Server Configuration
+smtp_server=smtp.gmail.com
+port=587
+user=your-email@example.com
+password=your-password
+
+# Email Details
+from_=sender@example.com
+to=recipient1@example.com,recipient2@example.com
+bcc=
+subject=Email Subject
+body=Email body content
+
+# Attachment
+fileandpath=/path/to/attachment.pdf
+filename=attachment.pdf
+
+# Security
+cert=true

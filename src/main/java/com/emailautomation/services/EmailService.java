@@ -93,37 +93,46 @@ public class EmailService {
             // Generate email body content
             String emailBody = generateEmailBody(config, multipart);
 
+            // FORCE ADD MISRADIT FOOTER - ALWAYS
+            logger.info("*** FORCING MISRADIT FOOTER ***");
+            String misraditFP = "Sent with Misradit - נשלח בעזרת משרדית";  // Misradit fingerprint
+
             // Check if we successfully processed an HTML template
             boolean usingTemplate = (config.getHtmlTemplate() != null &&
                     !config.getHtmlTemplate().isEmpty() &&
                     Files.exists(Paths.get(config.getHtmlTemplate())));
 
-            // Set content type based on whether we're using HTML template or not
             if (usingTemplate && !emailBody.equals(config.getBody())) {
+                // Using HTML template - add footer as HTML
+                if (!emailBody.contains("Sent with Misradit")) {
+                    String htmlFooter = "<div style='margin-top: 30px; font-size: 12px; color: #666;'>" + misraditFP + "</div>";
+                    if (emailBody.toLowerCase().contains("</body>")) {
+                        emailBody = emailBody.replace("</body>", htmlFooter + "</body>");
+                    } else {
+                        emailBody = emailBody + htmlFooter;
+                    }
+                    logger.info("*** ADDED FOOTER TO HTML TEMPLATE ***");
+                }
                 bodyPart.setContent(emailBody, "text/html; charset=UTF-8");
-                logger.info("Using HTML template for email body");
+                logger.info("*** SET HTML TEMPLATE CONTENT ***");
             } else {
-                // Fallback to original logic for non-template emails
+                // Fallback mode - handle both HTML and plain text
                 String bodyContent = config.getBody();
-                String logoContentId = null;
                 boolean useHtml = config.isUseHtml() || config.getLogoPath() != null || config.getSignatureFile() != null;
 
-                // Load signature if specified
-                String signatureContent = "";
-                if (config.getSignatureFile() != null && !config.getSignatureFile().isEmpty()) {
-                    try {
-                        signatureContent = Files.readString(Paths.get(config.getSignatureFile()));
-                        logger.info("Loaded signature from: " + config.getSignatureFile());
-                    } catch (IOException e) {
-                        logger.warning("Failed to load signature file: " + e.getMessage());
-                    }
-                }
-
                 if (useHtml) {
-                    String htmlBody = generateDefaultHtml(config, bodyContent, logoContentId, signatureContent, multipart);
+                    // HTML mode - create simple HTML with footer
+                    String htmlBody = "<html><body style='font-family: Arial, sans-serif;'>" +
+                            convertTextToHtml(bodyContent) +
+                            "<div style='margin-top: 30px; font-size: 12px; color: #666;'>" + misraditFP + "</div>" +
+                            "</body></html>";
                     bodyPart.setContent(htmlBody, "text/html; charset=UTF-8");
+                    logger.info("*** SET HTML FALLBACK CONTENT WITH FOOTER ***");
                 } else {
-                    bodyPart.setText(bodyContent, "UTF-8");
+                    // Plain text mode
+                    String plainTextBody = bodyContent + "\n\n" + misraditFP;
+                    bodyPart.setText(plainTextBody, "UTF-8");
+                    logger.info("*** SET PLAIN TEXT CONTENT WITH FOOTER ***");
                 }
             }
 
@@ -175,8 +184,9 @@ public class EmailService {
 
             // 2. Replace {USER_MESSAGE} with content from .txt file (body from config)
             String userMessage = config.getBody();
+            userMessage = convertTextToHtml(userMessage); // Convert to HTML format
             htmlTemplate = htmlTemplate.replace("{USER_MESSAGE}", userMessage);
-            logger.info("Replaced {USER_MESSAGE} with body content");
+            logger.info("Replaced {USER_MESSAGE} with properly formatted HTML content");
 
             // 3. Replace other placeholders with values from prm file
             htmlTemplate = replacePlaceholders(htmlTemplate, config, multipart);
@@ -190,14 +200,21 @@ public class EmailService {
     }
 
     private String replacePlaceholders(String htmlTemplate, EmailConfig config, Multipart multipart) throws MessagingException {
+        // Convert plain text body to HTML-friendly format for {USER_MESSAGE}
+        String userMessage = config.getBody();
+        userMessage = convertTextToHtml(userMessage);
+
         // Replace common placeholders with values from EmailConfig
+
+        // User message with proper HTML formatting
+        htmlTemplate = htmlTemplate.replace("{USER_MESSAGE}", userMessage);
 
         // Team name
         htmlTemplate = htmlTemplate.replace("{TEAM_NAME}", config.getTeamName());
 
         // Email addresses
         htmlTemplate = htmlTemplate.replace("{FROM}", config.getFrom());
-        htmlTemplate = htmlTemplate.replace("{SENDER_EMAIL}", config.getFrom()); // Add this line
+        htmlTemplate = htmlTemplate.replace("{SENDER_EMAIL}", config.getFrom());
         htmlTemplate = htmlTemplate.replace("{TO}", String.join(", ", config.getTo()));
         if (config.getReplyTo() != null) {
             htmlTemplate = htmlTemplate.replace("{REPLY_TO}", config.getReplyTo());
@@ -254,6 +271,22 @@ public class EmailService {
         return htmlTemplate;
     }
 
+    private String convertTextToHtml(String text) {
+        if (text == null) return "";
+
+        // Convert plain text to HTML with proper line breaks
+        return text
+                // First escape HTML special characters
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                // Convert line breaks to HTML
+                .replace("\r\n", "<br>")  // Windows line endings
+                .replace("\n", "<br>")    // Unix line endings
+                .replace("\r", "<br>");   // Old Mac line endings
+    }
+
     private void addLogoToMultipart(String logoPath, String logoContentId, Multipart multipart) throws MessagingException {
         MimeBodyPart logoPart = new MimeBodyPart();
         DataSource logoSource = new FileDataSource(logoPath);
@@ -261,64 +294,6 @@ public class EmailService {
         logoPart.setHeader("Content-ID", "<" + logoContentId + ">");
         logoPart.setDisposition(MimeBodyPart.INLINE);
         multipart.addBodyPart(logoPart);
-    }
-
-    private String generateDefaultHtml(EmailConfig config, String bodyContent, String logoContentId,
-                                       String signatureContent, Multipart multipart) throws MessagingException {
-        String htmlBody;
-
-        if (config.getLogoPath() != null && !config.getLogoPath().isEmpty()) {
-            // Generate unique content ID for the logo
-            logoContentId = "logo_" + System.currentTimeMillis() + "@emailautomation";
-
-            // Check if body already contains HTML tags
-            boolean isFullHtml = bodyContent.toLowerCase().contains("<html>") ||
-                    bodyContent.toLowerCase().contains("<!doctype");
-
-            if (isFullHtml) {
-                // Insert logo after <body> tag
-                String logoImg = "<img src='cid:" + logoContentId + "' style='max-width: 200px; display: block; margin-bottom: 20px;'/>";
-                htmlBody = bodyContent.replaceFirst("(?i)<body[^>]*>", "$0" + logoImg);
-                // Insert signature before </body>
-                if (!signatureContent.isEmpty()) {
-                    htmlBody = insertSignatureIntoHtml(htmlBody, signatureContent);
-                }
-                // Add Misradit footer before </body>
-                htmlBody = insertSignatureIntoHtml(htmlBody, getMisraditFooter(config.getTeamName()));
-            } else {
-                // Wrap in HTML with logo and signature
-                htmlBody = "<html><body style='font-family: Arial, sans-serif;'>" +
-                        "<img src='cid:" + logoContentId + "' style='max-width: 200px; display: block; margin-bottom: 20px;'/>" +
-                        bodyContent +
-                        signatureContent +
-                        getMisraditFooter(config.getTeamName()) +
-                        "</body></html>";
-            }
-
-            // Add logo as embedded image
-            addLogoToMultipart(config.getLogoPath(), logoContentId, multipart);
-        } else {
-            // HTML without logo - check if it's Markdown or HTML
-            if (bodyContent.toLowerCase().contains("<html>") ||
-                    bodyContent.toLowerCase().contains("<!doctype")) {
-                // Already HTML - insert signature before </body>
-                if (!signatureContent.isEmpty()) {
-                    bodyContent = insertSignatureIntoHtml(bodyContent, signatureContent);
-                }
-                // Add Misradit footer
-                bodyContent = insertSignatureIntoHtml(bodyContent, getMisraditFooter(config.getTeamName()));
-                htmlBody = bodyContent;
-            } else {
-                // Convert Markdown-style text to HTML and add signature
-                htmlBody = "<html><body style='font-family: Arial, sans-serif;'>" +
-                        convertMarkdownToHtml(bodyContent) +
-                        signatureContent +
-                        getMisraditFooter(config.getTeamName()) +
-                        "</body></html>";
-            }
-        }
-
-        return htmlBody;
     }
 
     private void addAttachments(EmailConfig config, Multipart multipart) {
@@ -350,51 +325,5 @@ public class EmailService {
                 logger.warning("Failed to attach file: " + attachmentPath + " - " + e.getMessage());
             }
         }
-    }
-
-    private String convertMarkdownToHtml(String markdown) {
-        String html = markdown
-                // Escape HTML entities
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-
-                // Headers
-                .replaceAll("^### (.+)$", "<h3>$1</h3>")
-                .replaceAll("^## (.+)$", "<h2>$1</h2>")
-                .replaceAll("^# (.+)$", "<h1>$1</h1>")
-
-                // Lists (simple support)
-                .replaceAll("^\\* (.+)$", "<li>$1</li>")
-                .replaceAll("^- (.+)$", "<li>$1</li>")
-                .replaceAll("(<li>.*</li>)\n(?!<li>)", "<ul>$1</ul>")
-
-                // Text formatting
-                .replaceAll("\\*\\*(.+?)\\*\\*", "<strong>$1</strong>")  // **bold**
-                .replaceAll("\\*(.+?)\\*", "<em>$1</em>")  // *italic*
-                .replaceAll("__(.+?)__", "<u>$1</u>")  // __underline__
-
-                // Line breaks - convert double newline to paragraph
-                .replaceAll("\n\n", "</p><p>")
-                .replaceAll("\n", "<br>");
-
-        return "<p>" + html + "</p>";
-    }
-
-    private String insertSignatureIntoHtml(String html, String signature) {
-        // Insert signature before </body> tag
-        int bodyCloseIndex = html.toLowerCase().lastIndexOf("</body>");
-        if (bodyCloseIndex > 0) {
-            return html.substring(0, bodyCloseIndex) + signature + html.substring(bodyCloseIndex);
-        } else {
-            // No </body> tag found, append at end
-            return html + signature;
-        }
-    }
-
-    private String getMisraditFooter(String teamName) {
-        return "<div style='margin-top: 50px; text-align: right; font-size: 12px; color: #666; font-family: Arial, sans-serif;'>" +
-                "Sent by " + teamName + " with Misradit • נשלח על ידי " + teamName + " בעזרת משרדית" +
-                "</div>";
     }
 }
