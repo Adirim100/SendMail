@@ -95,7 +95,7 @@ public class EmailService {
 
             // FORCE ADD MISRADIT FOOTER - ALWAYS
             logger.info("*** FORCING MISRADIT FOOTER ***");
-            String misraditFP = "Sent with Misradit - נשלח בעזרת משרדית";  // Misradit fingerprint
+            String misraditText = "Sent with Misradit - נשלח בעזרת משרדית";
 
             // Check if we successfully processed an HTML template
             boolean usingTemplate = (config.getHtmlTemplate() != null &&
@@ -105,7 +105,7 @@ public class EmailService {
             if (usingTemplate && !emailBody.equals(config.getBody())) {
                 // Using HTML template - add footer as HTML
                 if (!emailBody.contains("Sent with Misradit")) {
-                    String htmlFooter = "<div style='margin-top: 30px; font-size: 12px; color: #666;'>" + misraditFP + "</div>";
+                    String htmlFooter = "<div style='margin-top: 30px; font-size: 12px; color: #666;'>" + misraditText + "</div>";
                     if (emailBody.toLowerCase().contains("</body>")) {
                         emailBody = emailBody.replace("</body>", htmlFooter + "</body>");
                     } else {
@@ -124,13 +124,13 @@ public class EmailService {
                     // HTML mode - create simple HTML with footer
                     String htmlBody = "<html><body style='font-family: Arial, sans-serif;'>" +
                             convertTextToHtml(bodyContent) +
-                            "<div style='margin-top: 30px; font-size: 12px; color: #666;'>" + misraditFP + "</div>" +
+                            "<div style='margin-top: 30px; font-size: 12px; color: #666;'>" + misraditText + "</div>" +
                             "</body></html>";
                     bodyPart.setContent(htmlBody, "text/html; charset=UTF-8");
                     logger.info("*** SET HTML FALLBACK CONTENT WITH FOOTER ***");
                 } else {
                     // Plain text mode
-                    String plainTextBody = bodyContent + "\n\n" + misraditFP;
+                    String plainTextBody = bodyContent + "\n\n" + misraditText;
                     bodyPart.setText(plainTextBody, "UTF-8");
                     logger.info("*** SET PLAIN TEXT CONTENT WITH FOOTER ***");
                 }

@@ -6,24 +6,31 @@ import java.nio.file.*;
 import java.util.*;
 import java.util.logging.Logger;
 
-public class EmailConfigLoader {
+public class EmailConfigLoader
+{
     private static final Logger logger = Logger.getLogger(EmailConfigLoader.class.getName());
 
-    public static EmailConfig loadFromFile(String filePath) throws IOException {
+    public static EmailConfig loadFromFile(String filePath) throws IOException
+    {
         EmailConfig.Builder builder = EmailConfig.builder();
 
-        try (BufferedReader reader = Files.newBufferedReader(Paths.get(filePath))) {
+        // Force DOS encoding (IBM-862) for the config file
+        try (BufferedReader reader = Files.newBufferedReader(Paths.get(filePath), java.nio.charset.Charset.forName("IBM862")))
+        {
             String line;
-            while ((line = reader.readLine()) != null) {
+            while ((line = reader.readLine()) != null)
+            {
                 String[] parts = line.split("=", 2);
                 if (parts.length != 2) continue;
 
                 String key = parts[0].trim();
                 String value = parts[1].trim();
 
-                switch (key) {
+                // For fields that can be Hebrew, fix the direction
+                switch (key)
+                {
                     case "smtp_server":
-                        builder.smtpServer(value);
+                        builder.smtpServer(value); // English/host - no fix
                         break;
                     case "port":
                         builder.port(Integer.parseInt(value));
@@ -35,14 +42,16 @@ public class EmailConfigLoader {
                         builder.password(value);
                         break;
                     case "from_":
-                        builder.from(value);
+                        builder.from(fixHebrewDirection(value));
                         break;
                     case "to":
                         String[] toAddresses = value.split(",");
                         List<String> toList = new ArrayList<>();
-                        for (String email : toAddresses) {
-                            String trimmed = email.trim();
-                            if (!trimmed.isEmpty()) {
+                        for (String email : toAddresses)
+                        {
+                            String trimmed = fixHebrewDirection(email.trim());
+                            if (!trimmed.isEmpty())
+                            {
                                 toList.add(trimmed);
                             }
                         }
@@ -51,9 +60,11 @@ public class EmailConfigLoader {
                     case "bcc":
                         String[] bccAddresses = value.split(",");
                         List<String> bccList = new ArrayList<>();
-                        for (String email : bccAddresses) {
-                            String trimmed = email.trim();
-                            if (!trimmed.isEmpty()) {
+                        for (String email : bccAddresses)
+                        {
+                            String trimmed = fixHebrewDirection(email.trim());
+                            if (!trimmed.isEmpty())
+                            {
                                 bccList.add(trimmed);
                             }
                         }
@@ -63,13 +74,13 @@ public class EmailConfigLoader {
                         builder.attachmentPath(value);
                         break;
                     case "filename":
-                        builder.attachmentName(value);
+                        builder.attachmentName(fixHebrewDirection(value));
                         break;
                     case "subject":
-                        builder.subject(value);
+                        builder.subject(fixHebrewDirection(value));
                         break;
                     case "body":
-                        builder.body(value);
+                        builder.body(fixHebrewDirection(value));
                         break;
                     case "cert":
                         builder.useTLS(Boolean.parseBoolean(value) || "True".equalsIgnoreCase(value));
@@ -80,20 +91,19 @@ public class EmailConfigLoader {
                         break;
                     case "sendamail":
                     case "sendemail":
-                        // Ignored - deprecated parameter
                         logger.info("Ignoring deprecated parameter: " + key);
                         break;
                     case "signaturefile":
                     case "signature_file":
                     case "signature":
-                        builder.signatureFile(value);
+                        builder.signatureFile(fixHebrewDirection(value));
                         break;
                     case "debug":
                         builder.debug(Boolean.parseBoolean(value) || "True".equalsIgnoreCase(value));
                         break;
                     case "reply_to":
                     case "replyto":
-                        builder.replyTo(value);
+                        builder.replyTo(fixHebrewDirection(value));
                         break;
                     case "read_receipt":
                     case "readreceipt":
@@ -101,11 +111,11 @@ public class EmailConfigLoader {
                         break;
                     case "teamname":
                     case "team_name":
-                        builder.teamName(value);
+                        builder.teamName(fixHebrewDirection(value));
                         break;
                     case "htmltemplate":
                     case "html_template":
-                        builder.htmlTemplate(value);
+                        builder.htmlTemplate(fixHebrewDirection(value));
                         break;
                 }
             }
@@ -115,15 +125,15 @@ public class EmailConfigLoader {
         String mdFilePath = filePath.replaceAll("\\.[^.]+$", ".md");
         String txtFilePath = filePath.replaceAll("\\.[^.]+$", ".txt");
 
-        // First check for Markdown file
-        if (Files.exists(Paths.get(mdFilePath))) {
+        if (Files.exists(Paths.get(mdFilePath)))
+        {
             logger.info("Loading Markdown email body from: " + mdFilePath);
             String mdBody = readFileWithEncoding(mdFilePath);
             builder.body(mdBody);
             builder.useHtml(true);  // Will convert to HTML
         }
-        // Otherwise check for text file
-        else if (Files.exists(Paths.get(txtFilePath))) {
+        else if (Files.exists(Paths.get(txtFilePath)))
+        {
             logger.info("Loading email body from: " + txtFilePath);
             String bodyFromFile = readFileWithEncoding(txtFilePath);
             builder.body(bodyFromFile);
@@ -131,29 +141,34 @@ public class EmailConfigLoader {
 
         // Load attachments from separate .list file if it exists
         String listFilePath = filePath.replaceAll("\\.[^.]+$", ".list");
-        if (Files.exists(Paths.get(listFilePath))) {
+        if (Files.exists(Paths.get(listFilePath)))
+        {
             logger.info("Loading attachments from: " + listFilePath);
             List<String> attachmentLines = Files.readAllLines(Paths.get(listFilePath));
             List<String> attachmentPaths = new ArrayList<>();
 
-            for (String line : attachmentLines) {
+            for (String line : attachmentLines)
+            {
                 line = line.trim();
-                if (!line.isEmpty() && !line.startsWith("#")) { // Skip empty lines and comments
-                    // Handle both formats:
-                    // 1. "fileandpath = path"
-                    // 2. "path" (direct path)
-                    if (line.contains("=")) {
+                if (!line.isEmpty() && !line.startsWith("#"))
+                {
+                    if (line.contains("="))
+                    {
                         String[] parts = line.split("=", 2);
-                        if (parts.length == 2) {
+                        if (parts.length == 2)
+                        {
                             attachmentPaths.add(parts[1].trim());
                         }
-                    } else {
+                    }
+                    else
+                    {
                         attachmentPaths.add(line);
                     }
                 }
             }
 
-            if (!attachmentPaths.isEmpty()) {
+            if (!attachmentPaths.isEmpty())
+            {
                 builder.attachmentPaths(attachmentPaths);
             }
         }
@@ -161,20 +176,51 @@ public class EmailConfigLoader {
         return builder.build();
     }
 
-    private static String readFileWithEncoding(String filePath) throws IOException {
-        // First try UTF-8
-        try {
+    private static String readFileWithEncoding(String filePath) throws IOException
+    {
+        // Try UTF-8, fallback to IBM-862, then Windows-1255 for body/attachments
+        try
+        {
             return Files.readString(Paths.get(filePath), java.nio.charset.StandardCharsets.UTF_8);
-        } catch (java.nio.charset.MalformedInputException e) {
-            // If UTF-8 fails, try IBM-862 (Hebrew DOS)
+        }
+        catch (java.nio.charset.MalformedInputException e)
+        {
             logger.info("UTF-8 decoding failed, trying IBM-862 encoding");
-            try {
-                return Files.readString(Paths.get(filePath), java.nio.charset.Charset.forName("IBM862"));
-            } catch (Exception ex) {
-                // If IBM-862 fails, try Windows-1255 (Hebrew Windows)
+            try
+            {
+                String raw = Files.readString(Paths.get(filePath), java.nio.charset.Charset.forName("IBM862"));
+                return fixHebrewDirection(raw);
+            }
+            catch (Exception ex)
+            {
                 logger.info("IBM-862 decoding failed, trying Windows-1255 encoding");
-                return Files.readString(Paths.get(filePath), java.nio.charset.Charset.forName("Windows-1255"));
+                String raw = Files.readString(Paths.get(filePath), java.nio.charset.Charset.forName("Windows-1255"));
+                return fixHebrewDirection(raw);
             }
         }
+    }
+
+    // Hebrew direction fixer: reverses any line with Hebrew letters
+    private static String fixHebrewDirection(String text)
+    {
+        StringBuilder fixed = new StringBuilder();
+        for (String line : text.split("\\r?\\n"))
+        {
+            if (line.matches(".*[\\u0590-\\u05FF]+.*")) // Hebrew Unicode range
+            {
+                fixed.append(new StringBuilder(line).reverse());
+            }
+            else
+            {
+                fixed.append(line);
+            }
+            fixed.append(System.lineSeparator());
+        }
+        // Remove last line separator for clean output
+        if (fixed.length() >= System.lineSeparator().length())
+        {
+            fixed.setLength(fixed.length() - System.lineSeparator().length());
+        }
+        return fixed.toString();
     }
 }

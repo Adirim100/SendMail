@@ -55,9 +55,14 @@ public class LogService {
             logPath = Paths.get(logFile);
         }
 
+        // Decide whether to append or overwrite
+        boolean isSentLast = "sentlast.log".equalsIgnoreCase(logFile);
+        OpenOption[] options = isSentLast
+                ? new OpenOption[] { StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING }
+                : new OpenOption[] { StandardOpenOption.CREATE, StandardOpenOption.APPEND };
+
         try {
-            Files.write(logPath, logEntry.getBytes(),
-                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            Files.write(logPath, logEntry.getBytes(), options);
             logger.info("Log written to: " + logPath);
         } catch (IOException e) {
             logger.severe("Failed to write to log file: " + e.getMessage());
